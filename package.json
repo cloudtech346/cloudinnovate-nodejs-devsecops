@@ -1,0 +1,14 @@
+{
+  "name": "cloudinnovate-secure-nodejs",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Demo Node.js app for a DevSecOps pipeline",
+  "main": "src/server.js",
+  "scripts": {
+    "start": "node src/server.js",
+    "test": "node --test"
+  },
+  "dependencies": {
+    "express": "^4.21.2"
+  }
+}

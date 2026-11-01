@@ -1,0 +1,52 @@
+version: 0.2
+
+env:
+  shell: bash
+
+phases:
+  install:
+    runtime-versions:
+      nodejs: 20
+    commands:
+      - npm install --package-lock-only
+      - npm ci
+      - mkdir -p reports
+  pre_build:
+    commands:
+      - echo "Running unit tests"
+      - npm test
+      - echo "Running Snyk dependency (SCA) scan"
+      - npm install -g snyk
+      - snyk test --severity-threshold=high --json-file-output=reports/snyk-sca.json
+      - echo "Running Snyk source (SAST) scan"
+      - snyk code test --severity-threshold=high --json-file-output=reports/snyk-sast.json
+  build:
+    commands:
+      - echo "Starting application for OWASP ZAP DAST"
+      - nohup npm start > /tmp/cloudinnovate-app.log 2>&1 &
+      - |
+        for i in {1..30}; do
+          if curl -fsS http://127.0.0.1:3000/health; then
+            break
+          fi
+          sleep 2
+        done
+      - curl -fsS http://127.0.0.1:3000/health
+      - echo "Running OWASP ZAP baseline scan"
+      - docker run --rm --network host -v "$PWD/reports:/zap/wrk/:rw" ghcr.io/zaproxy/zaproxy:stable zap-baseline.py -t http://127.0.0.1:3000 -J zap-report.json -r zap-report.html
+  post_build:
+    commands:
+      - |
+        if [ -n "${REPORTS_BUCKET}" ]; then
+          aws s3 cp reports/ "s3://${REPORTS_BUCKET}/${CODEBUILD_BUILD_ID}/" --recursive
+        else
+          echo "REPORTS_BUCKET not set; reports will be retained as CodeBuild artifacts only."
+        fi
+
+artifacts:
+  files:
+    - '**/*'
+  exclude-paths:
+    - node_modules/**/*
+    - .git/**/*
+  name: devsecops-build-artifacts
