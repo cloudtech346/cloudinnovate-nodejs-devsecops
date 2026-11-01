@@ -47,7 +47,7 @@ jobs:
         continue-on-error: true
         env:
           SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
-        run: snyk test --debug --file=package-lock.json --severity-threshold=high
+        run: snyk test --debug --file=package-lock.json --severity-threshold=high --json-file-output=reports/snyk-sca.json
 
       # SAST - Source Code Scan
       - name: SAST - Snyk code scan
