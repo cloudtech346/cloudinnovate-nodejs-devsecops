@@ -38,9 +38,11 @@ phases:
 
   post_build:
     commands:
-      - if [ -n "$REPORTS_BUCKET" ]; then aws s3 cp reports/ "s3://${REPORTS_BUCKET}/${CODEBUILD_BUILD_ID}/" --recursive; else echo "Reports retained as CodeBuild artifacts only."; fi
+      - if [ -n "$REPORTS_BUCKET" ]; then aws s3 cp reports/ "s3://${REPORTS_BUCKET}/${CODEBUILD_BUILD_ID}/" --recursive; else echo "Reports retained as build artifacts."; fi
       - if [ -f app.pid ]; then kill "$(cat app.pid)" || true; fi
+
 artifacts:
   files:
     - 'reports/**/*'
     - 'app.log'
+  discard-paths: no
