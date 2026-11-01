@@ -10,14 +10,15 @@ phases:
       - mkdir -p reports
       - chmod 777 reports
 
-  pre_build:
-    commands:
-      - echo "Running unit tests"
-      - npm test
-      - echo "Installing Snyk"
-      - npm install -g snyk
-      - echo "Running Snyk dependency scan"
-      - snyk test --severity-threshold=high --json-file-output=reports/snyk-sca.json || echo "WARNING: Snyk skipped due to lab network restriction"
+      pre_build:
+      commands:
+        - echo "Running unit tests"
+        - npm test
+        - echo "Installing Snyk"
+        - npm install -g snyk
+        - echo "Running Snyk dependency scan"
+        - |
+          snyk test --severity-threshold=high --json-file-output=reports/snyk-sca.json || echo "WARNING: Snyk skipped due to lab network restriction"
 
   build:
     commands:
