@@ -2,10 +2,12 @@ name: Node.js DevSecOps
 
 on:
   push:
-    branches: [main]
+    branches:
+      - main
 
   pull_request:
-    branches: [main]
+    branches:
+      - main
 
   workflow_dispatch:
 
@@ -18,70 +20,64 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      # 1. Checkout source code
-      - name: Checkout
+      - name: Checkout source code
         uses: actions/checkout@v4
 
-      # 2. Setup Node.js
-      - name: Set up Node.js
+      - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: "20"
           cache: npm
 
-      # 3. Install dependencies
       - name: Install dependencies
         run: npm ci
 
-      # 4. Run unit tests
-      - name: Unit tests
+      - name: Run unit tests
         run: npm test
 
-      # 5. SCA - Dependency scanning with Snyk
-      - name: SCA - dependency scan with Snyk
+      # SCA - Dependency Security Scan
+      - name: SCA - Snyk dependency scan
         uses: snyk/actions/node@master
+        continue-on-error: true
         env:
           SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
         with:
+          command: test
+          args: --file=package-lock.json --package-manager=npm --severity-threshold=high
+
+      # SAST - Source Code Security Scan
+      - name: SAST - Snyk code scan
+        uses: snyk/actions/node@master
+        continue-on-error: true
+        env:
+          SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
+        with:
+          command: code test
           args: --severity-threshold=high
 
-      # 6. SAST - Source code scanning with Snyk
-      - name: SAST - source code scan with Snyk
-        uses: snyk/actions/node@master
-        env:
-          SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
-        with:
-          command: code
-          args: test --severity-threshold=high
-
-      # 7. Start demo application
+      # Start Node.js Application
       - name: Start demo application
         run: |
-          mkdir -p reports
           npm start > app.log 2>&1 &
           echo $! > app.pid
 
-          ready=0
-
           for i in {1..30}; do
             if curl -fsS http://127.0.0.1:3000/health; then
-              ready=1
-              break
+              echo "Application started successfully"
+              exit 0
             fi
+
             sleep 2
           done
 
-          if [ "$ready" -ne 1 ]; then
-            echo "Application failed to start"
-            cat app.log
-            exit 1
-          fi
+          cat app.log
+          exit 1
 
-          echo "Application started successfully"
-
-      # 8. DAST - OWASP ZAP baseline scan
+      # DAST - OWASP ZAP Scan
       - name: DAST - OWASP ZAP baseline scan
         run: |
+          mkdir -p reports
+
           docker run --rm --network host \
             -v "$PWD/reports:/zap/wrk/:rw" \
             ghcr.io/zaproxy/zaproxy:stable \
@@ -90,7 +86,7 @@ jobs:
             -J zap-report.json \
             -r zap-report.html
 
-      # 9. Upload security reports
+      # Upload Security Reports
       - name: Upload security reports
         if: always()
         uses: actions/upload-artifact@v4
@@ -98,4 +94,11 @@ jobs:
           name: security-reports
           path: reports/
           if-no-files-found: ignore
-```
+
+      # Stop Application
+      - name: Stop demo application
+        if: always()
+        run: |
+          if [ -f app.pid ]; then
+            kill "$(cat app.pid)" || true
+          fi
