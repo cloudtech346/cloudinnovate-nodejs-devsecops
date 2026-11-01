@@ -17,7 +17,6 @@ phases:
       - npm test
       - echo "Running Snyk dependency (SCA) scan"
       - npm install -g snyk
-      - snyk test --severity-threshold=high --json-file-output=reports/snyk-sca.json
       - echo "Running Snyk source (SAST) scan"
       - snyk test --debug --file=package-lock.json --severity-threshold=high --json-file-output=reports/snyk-sca.json
   build:
