@@ -4,16 +4,13 @@ on:
   push:
     branches:
       - main
-
   pull_request:
     branches:
       - main
-
   workflow_dispatch:
 
 permissions:
   contents: read
-  security-events: write
 
 jobs:
   build-and-security:
@@ -26,7 +23,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: "20"
+          node-version: "22"
           cache: npm
 
       - name: Install dependencies
@@ -35,27 +32,24 @@ jobs:
       - name: Run unit tests
         run: npm test
 
-      # SCA - Dependency Security Scan
+      # SCA - Dependency Scan
       - name: SCA - Snyk dependency scan
-        uses: snyk/actions/node@master
         continue-on-error: true
         env:
           SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
-        with:
-          command: test
-          args: --file=package-lock.json --package-manager=npm --severity-threshold=high
+        run: |
+          npm install --global snyk
+          snyk test --file=package-lock.json --severity-threshold=high
 
-      # SAST - Source Code Security Scan
+      # SAST - Source Code Scan
       - name: SAST - Snyk code scan
-        uses: snyk/actions/node@master
         continue-on-error: true
         env:
           SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
-        with:
-          command: code test
-          args: --severity-threshold=high
+        run: |
+          snyk code test
 
-      # Start Node.js Application
+      # Start Application
       - name: Start demo application
         run: |
           npm start > app.log 2>&1 &
@@ -66,7 +60,6 @@ jobs:
               echo "Application started successfully"
               exit 0
             fi
-
             sleep 2
           done
 
@@ -77,6 +70,7 @@ jobs:
       - name: DAST - OWASP ZAP baseline scan
         run: |
           mkdir -p reports
+          chmod 777 reports
 
           docker run --rm --network host \
             -v "$PWD/reports:/zap/wrk/:rw" \
