@@ -4,9 +4,11 @@ on:
   push:
     branches:
       - main
+
   pull_request:
     branches:
       - main
+
   workflow_dispatch:
 
 permissions:
@@ -17,39 +19,44 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
+      # Checkout Source Code
       - name: Checkout source code
         uses: actions/checkout@v4
 
+      # Setup Node.js
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: "22"
           cache: npm
 
+      # Install Dependencies
       - name: Install dependencies
         run: npm ci
 
+      # Run Unit Tests
       - name: Run unit tests
         run: npm test
+
+      # Install Snyk CLI
+      - name: Install Snyk CLI
+        run: npm install --global snyk
 
       # SCA - Dependency Scan
       - name: SCA - Snyk dependency scan
         continue-on-error: true
         env:
           SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
-        run: |
-          npm install --global snyk
-          snyk test --file=package-lock.json --severity-threshold=high
+        run: snyk test --file=package-lock.json --severity-threshold=high
 
       # SAST - Source Code Scan
       - name: SAST - Snyk code scan
         continue-on-error: true
         env:
           SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
-        run: |
-          snyk code test
+        run: snyk code test
 
-      # Start Application
+      # Start Node.js Application
       - name: Start demo application
         run: |
           npm start > app.log 2>&1 &
@@ -60,6 +67,7 @@ jobs:
               echo "Application started successfully"
               exit 0
             fi
+
             sleep 2
           done
 
@@ -76,6 +84,7 @@ jobs:
             -v "$PWD/reports:/zap/wrk/:rw" \
             ghcr.io/zaproxy/zaproxy:stable \
             zap-baseline.py \
+            -I \
             -t http://127.0.0.1:3000 \
             -J zap-report.json \
             -r zap-report.html
