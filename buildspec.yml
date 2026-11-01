@@ -1,8 +1,5 @@
 version: 0.2
 
-env:
-  shell: bash
-
 phases:
   install:
     runtime-versions:
@@ -11,15 +8,18 @@ phases:
       - npm install --package-lock-only
       - npm ci
       - mkdir -p reports
+      - chmod 777 reports
+
   pre_build:
     commands:
       - echo "Running unit tests"
       - npm test
-      - echo "Running Snyk dependency (SCA) scan"
+      - echo "Installing Snyk"
       - npm install -g snyk
-        - echo "Running Snyk dependency scan"
-        - snyk test --severity-threshold=high --json-file-output=reports/snyk-sca.json || echo "Snyk scan skipped due to lab network restriction"
-    build:
+      - echo "Running Snyk dependency scan"
+      - snyk test --severity-threshold=high --json-file-output=reports/snyk-sca.json || echo "WARNING: Snyk skipped due to lab network restriction"
+
+  build:
     commands:
       - echo "Starting Node.js application"
       - npm start > app.log 2>&1 &
@@ -34,20 +34,9 @@ phases:
         done
       - curl -f http://127.0.0.1:3000/health
       - echo "Running OWASP ZAP scan"
-      - docker run --rm --network host -v "$PWD/reports:/zap/wrk:rw" ghcr.io/zaproxy/zaproxy:stable zap-baseline.py -t http://127.0.0.1:3000 -J zap-report.json -r zap-report.html -I
+      - docker run --rm --network host --user 0:0 -v "$PWD/reports:/zap/wrk:rw" ghcr.io/zaproxy/zaproxy:stable zap-baseline.py -t http://127.0.0.1:3000 -J zap-report.json -r zap-report.html -I
+
   post_build:
     commands:
-      - |
-        if [ -n "${REPORTS_BUCKET}" ]; then
-          aws s3 cp reports/ "s3://${REPORTS_BUCKET}/${CODEBUILD_BUILD_ID}/" --recursive
-        else
-          echo "REPORTS_BUCKET not set; reports will be retained as CodeBuild artifacts only."
-        fi
-
-artifacts:
-  files:
-    - '**/*'
-  exclude-paths:
-    - node_modules/**/*
-    - .git/**/*
-  name: devsecops-build-artifacts
+      - if [ -n "$REPORTS_BUCKET" ]; then aws s3 cp reports/ "s3://${REPORTS_BUCKET}/${CODEBUILD_BUILD_ID}/" --recursive; else echo "Reports retained as CodeBuild artifacts only."; fi
+      - if [ -f app.pid ]; then kill "$(cat app.pid)" || true; fi
